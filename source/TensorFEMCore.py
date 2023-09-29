@@ -11,7 +11,7 @@ import os
 place = paddle.CUDAPlace(0)
 
 def eval_unassembled_resjac_claw_cg(U,transf_data,elem,
-                                    elem_data,ldof2gdof_var,parsfuncI,parsfuncB):
+                                    elem_data,ldof2gdof_var,parsfuncI,parsfuncB,model=None):
 	"""Evaluate elementwise residual and jacobian of conservation law in CG"""
 	nelem=elem_data.nelem
 	neqn_per_elem=elem.Tv_eqn_ref.shape[0]
@@ -26,7 +26,7 @@ def eval_unassembled_resjac_claw_cg(U,transf_data,elem,
 	dRe_=[]
 	for e in range(nelem):
 		Ue=U[ldof2gdof_var[:,e]]
-		Re0_,dRe0_=intg_elem_claw_vol(Ue,transf_data,elem,elem_data,e,parsfuncI)
+		Re0_,dRe0_=intg_elem_claw_vol(Ue,transf_data,elem,elem_data,e,parsfuncI,model)
 		Re1_,dRe1_=intg_elem_claw_extface(Ue,transf_data,elem,elem_data,e,parsfuncB)
 		Re_.append(ReshapeFix((Re0_+Re1_),[neqn_per_elem,1],order='F'))
 		dRe_.append(ReshapeFix((dRe0_+dRe1_),[neqn_per_elem,nvar_per_elem,1],order='C'))  
@@ -34,8 +34,7 @@ def eval_unassembled_resjac_claw_cg(U,transf_data,elem,
 	dRe=paddle.concat(dRe_,axis=2)
 	return Re,dRe
 
-def create_fem_resjac(fespc,Uf,transf_data,elem,elem_data,
-                      ldof2gdof_eqn,ldof2gdof_var,e2e,spmat,dbc,enforce_idx=None,parsfuncI=None,parsfuncB=None):
+def create_fem_resjac(fespc,Uf,transf_data,elem,elem_data,ldof2gdof_eqn,ldof2gdof_var,e2e,spmat,dbc,enforce_idx=None,parsfuncI=None,parsfuncB=None,model=None):
 	"""Create global residual(loss) and jacobian of conservation law in CG"""
 	ndof_var=np.max(ldof2gdof_var[:])+1
 	dbc_idx=paddle.to_tensor(dbc.dbc_idx)
@@ -53,8 +52,7 @@ def create_fem_resjac(fespc,Uf,transf_data,elem,elem_data,
 	# U is the GCNN output hardimpose BC but can backPP
 	if fespc=='cg' or fespc=='CG':
 		Re,dRe=eval_unassembled_resjac_claw_cg(U,transf_data,elem,elem_data,
-			                                   ldof2gdof_var,parsfuncI,parsfuncB)
-	  
+			                                   ldof2gdof_var,parsfuncI,parsfuncB,model)
 		dR=assemble_nobc_mat(dRe,spmat.cooidx,spmat.lmat2gmat)
 	else:
 		raise ValueError('FE space only support cg!')
@@ -68,7 +66,7 @@ def create_fem_resjac(fespc,Uf,transf_data,elem,elem_data,
 	print('Max Rf ===============================',paddle.max(paddle.abs(Rf)))
 	return Rf,dRf,dbc
 
-def intg_elem_claw_vol(Ue,transf_data,elem,elem_data,e,parsfuncI=None):
+def intg_elem_claw_vol(Ue,transf_data,elem,elem_data,e,parsfuncI=None, model=None):
 	"""Intergrate elementwise internal volume of element residual and jacobian of conservation law"""
 	[neqn_per_elem,neqn,ndimP1,nq]=elem.Tv_eqn_ref.shape
 	[nvar_per_elem,nvar,_,_]=elem.Tv_var_ref.shape
@@ -95,8 +93,8 @@ def intg_elem_claw_vol(Ue,transf_data,elem,elem_data,e,parsfuncI=None):
 		if parsfuncI==None:
 			pars=elem_data.vol_pars[:,k,e]
 		else:
-			pars=parsfuncI(x)
-		SF,dSFdU=elem.eqn.srcflux(UQq[:,:,k],pars,x)
+			pars=parsfuncI(x)	
+		SF,dSFdU=elem.eqn.srcflux(UQq[:,:,k],pars,x,model)
 		dSFdU=ReshapeFix(dSFdU,[neqn*(ndim+1),nvar*(ndim+1)],order='F')
 		Teqn=Double(Teqn)
 		Tvar=Double(Tvar)
@@ -305,10 +303,11 @@ def trainmodel(DataLoader,LossF,model,optimizer,criterion,qoiidx,softidx,penalty
 	grad_list = []
 	for n, tensor in model.named_parameters():
 		grad = tensor.grad
+		# print('gradient is',n, grad)
 		grad_list.append(grad.numpy()) 
-		# print('gradient is',tensor.grad)
-		# break
-	np.savetxt('demo1/grad.txt',grad_list, fmt='%s')
+		break
+	# exit()
+	# np.savetxt('demo1/grad.txt',grad_list, fmt='%s')
 	print('wallclock time of this BP= ',time.time()-tic)
 	optimizer.step()
 	param_list = []

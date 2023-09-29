@@ -1,10 +1,12 @@
-from pgl.nn import GCNConv
+# from pgl.nn import GCNConv
+import pgl
 import numpy as np
 import paddle
 import paddle.nn.initializer as Initializer
 import sys
 sys.path.insert(0, 'utils')
 from ChebConv import ChebConv
+from GCNConv import GCNConv
 from paddle.nn.functional import relu
 from paddle.nn import Layer, Linear
 
@@ -88,8 +90,7 @@ class PossionNet(Layer):
 		self.conv8 = GATConv(32, nco,heads=kk)
 		'''
 		self.source=paddle.to_tensor([0.25])
-		# self.source =paddle.create_parameter(self.source, dtype=paddle.float64)
-		self.source.stop_gradient = False
+		self.source=paddle.create_parameter(self.source.shape, dtype=paddle.float32, attr=Initializer.Assign(self.source))
 
 		'''
 		torch.nn.init.kaiming_normal_(self.conv1.weight, mode='fan_out', nonlinearity='relu')

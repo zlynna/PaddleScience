@@ -41,7 +41,7 @@ class LinearEllipticScalarBaseHandcode(object):
 		self.nvar=1
 		self.ncomp=1
 
-	def srcflux(self,UQ,pars,x):
+	def srcflux(self,UQ,pars,x,model=None):
 		"""
 		eval_linelptc_base_handcode_srcflux
 		"""
@@ -56,12 +56,11 @@ class LinearEllipticScalarBaseHandcode(object):
 			k=paddle.reshape(pars[0:self.ndim**2],
 					 (self.ndim,self.ndim))
 		f=pars[self.ndim**2]
-		
 		try:
 			temp_flag=(f.requires_grad)
 			f=f.reshape([1,1])
 		except:
-			f=paddle.to_tensor(f, dtype='float32').reshape([1,1])
+			f=f.reshape([1,1])
 
 		k_ml=paddle.to_tensor(k, dtype='float32')
 		# Define flux and source

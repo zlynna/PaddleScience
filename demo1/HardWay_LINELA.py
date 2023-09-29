@@ -5,6 +5,7 @@ import sys
 from scipy.io import loadmat
 
 import paddle
+import pgl
 sys.path.insert(0, 'pycamotk')
 from pyCaMOtk.mesh import Mesh, get_gdof_from_bndtag
 from pyCaMOtk.LinearElasticityHandCode import *
@@ -134,6 +135,7 @@ for i in range(xcg.shape[1]):
 	xcg_gcnn[:,2*i+1]=xcg[:,i]
 Uin=Double(xcg_gcnn.T)
 graph=Data(x=Uin,y=Ue_aug,edge_index=connectivity)
+# graph = pgl.Graph(edges=connectivity, num_nodes=Uin.shape[0], node_feat=Uin)
 Graph.append(graph)
 DataList=[[Graph[0]]]
 TrainDataloader=DataList
